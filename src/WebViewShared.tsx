@@ -1,88 +1,104 @@
+var __spreadArrays = (this && this.__spreadArrays) || function () {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
 import escapeStringRegexp from 'escape-string-regexp';
 import React from 'react';
-import { Linking, View, ActivityIndicator, Text } from 'react-native';
-import {
-  OnShouldStartLoadWithRequest,
-  ShouldStartLoadRequestEvent,
-} from './WebViewTypes';
+import { Linking, View, ActivityIndicator, Text, Alert, Platform } from 'react-native';
 import styles from './WebView.styles';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 
-const defaultOriginWhitelist = ['http://*', 'https://*'];
+const onSaveQrCode = (qrCode) => {
+    const fileUri = FileSystem.documentDirectory + 'qrCode.png'
+    var Base64Code = qrCode.split("data:image/png;base64,");
+    FileSystem.writeAsStringAsync(fileUri, Base64Code[1], { encoding: FileSystem.EncodingType.Base64 }).then(() => {
+        FileSystem.getInfoAsync(fileUri).then((file) => {
+            console.log(file)
+            MediaLibrary.requestPermissionsAsync().then(
+                (permission) => {
+                    console.log(permission)
+                    if (permission.granted) {
+                        
+                        MediaLibrary.createAssetAsync(file.uri)
+                            .then((value) => {
+                                MediaLibrary.createAlbumAsync(
+                                    "Wavelink",
+                                    value,
+                                    false,
+                                )
+                                    .then((a) => {
+                                        Alert.alert(
+                                            "Success download file",
+                                            "Please check folder Wavelink on your storage to view file",
+                                        )
+                                    })
+                                    .catch((e) => {
+                                    })
+                            })
+                            .catch((e) => {
+                                console.log(e)
+                            })
+                    }}
+                )
+        })
+    }).catch((e) =>
+        console.log(e)
+    )
+}
 
-const extractOrigin = (url: string): string => {
-  const result = /^[A-Za-z][A-Za-z0-9+\-.]+:(\/\/)?[^/]*/.exec(url);
-  return result === null ? '' : result[0];
+
+var defaultOriginWhitelist = ['http://*', 'https://*'];
+var extractOrigin = function (url) {
+    var result = /^[A-Za-z][A-Za-z0-9+\-.]+:(\/\/)?[^/]*/.exec(url);
+    return result === null ? '' : result[0];
 };
-
-const originWhitelistToRegex = (originWhitelist: string): string =>
-  `^${escapeStringRegexp(originWhitelist).replace(/\\\*/g, '.*')}`;
-
-const passesWhitelist = (
-  compiledWhitelist: readonly string[],
-  url: string,
-) => {
-  const origin = extractOrigin(url);
-  return compiledWhitelist.some(x => new RegExp(x).test(origin));
+var originWhitelistToRegex = function (originWhitelist) {
+    return "^" + escapeStringRegexp(originWhitelist).replace(/\\\*/g, '.*');
 };
-
-const compileWhitelist = (
-  originWhitelist: readonly string[],
-): readonly string[] =>
-  ['about:blank', ...(originWhitelist || [])].map(originWhitelistToRegex);
-
-const createOnShouldStartLoadWithRequest = (
-  loadRequest: (
-    shouldStart: boolean,
-    url: string,
-    lockIdentifier: number,
-  ) => void,
-  originWhitelist: readonly string[],
-  onShouldStartLoadWithRequest?: OnShouldStartLoadWithRequest,
-) => {
-  return ({ nativeEvent }: ShouldStartLoadRequestEvent) => {
-    let shouldStart = true;
-    const { url, lockIdentifier } = nativeEvent;
-
-    if (!passesWhitelist(compileWhitelist(originWhitelist), url)) {
-      Linking.canOpenURL(url).then((supported) => {
-        if (supported) {
-          return Linking.openURL(url);
+var passesWhitelist = function (compiledWhitelist, url) {
+    var origin = extractOrigin(url);
+    return compiledWhitelist.some(function (x) { return new RegExp(x).test(origin); });
+};
+var compileWhitelist = function (originWhitelist) {
+    return __spreadArrays(['about:blank'], (originWhitelist || [])).map(originWhitelistToRegex);
+};
+var createOnShouldStartLoadWithRequest = function (loadRequest, originWhitelist, onShouldStartLoadWithRequest) {
+    return function (_a) {
+        var nativeEvent = _a.nativeEvent;
+        var shouldStart = true;
+        var url = nativeEvent.url, lockIdentifier = nativeEvent.lockIdentifier;
+        if (!passesWhitelist(compileWhitelist(originWhitelist), url)) {
+            Linking.canOpenURL(url).then(function (supported) {
+                if (supported) {
+                    return Linking.openURL(url);
+                }
+                console.warn("Can't open url: " + url);
+                return undefined;
+            })["catch"](function (e) {
+                if (url.startsWith('data:image/png;base64,')) {
+                    onSaveQrCode(url)
+                }
+                // console.warn('Error opening URL: ', e);
+            });
+            shouldStart = false;
         }
-        console.warn(`Can't open url: ${url}`);
-        return undefined;
-      }).catch(e => {
-        console.warn('Error opening URL: ', e);
-      });
-      shouldStart = false;
-    } else if (onShouldStartLoadWithRequest) {
-      shouldStart = onShouldStartLoadWithRequest(nativeEvent);
-    }
-
-    loadRequest(shouldStart, url, lockIdentifier);
-  };
+        else if (onShouldStartLoadWithRequest) {
+            shouldStart = onShouldStartLoadWithRequest(nativeEvent);
+        }
+        loadRequest(shouldStart, url, lockIdentifier);
+    };
 };
-
-const defaultRenderLoading = () => (
-  <View style={styles.loadingOrErrorView}>
+var defaultRenderLoading = function () { return (<View style={styles.loadingOrErrorView}>
     <ActivityIndicator />
-  </View>
-);
-const defaultRenderError = (
-  errorDomain: string | undefined,
-  errorCode: number,
-  errorDesc: string,
-) => (
-  <View style={styles.loadingOrErrorView}>
+  </View>); };
+var defaultRenderError = function (errorDomain, errorCode, errorDesc) { return (<View style={styles.loadingOrErrorView}>
     <Text style={styles.errorTextTitle}>Error loading page</Text>
-    <Text style={styles.errorText}>{`Domain: ${errorDomain}`}</Text>
-    <Text style={styles.errorText}>{`Error Code: ${errorCode}`}</Text>
-    <Text style={styles.errorText}>{`Description: ${errorDesc}`}</Text>
-  </View>
-);
-
-export {
-  defaultOriginWhitelist,
-  createOnShouldStartLoadWithRequest,
-  defaultRenderLoading,
-  defaultRenderError,
-};
+    <Text style={styles.errorText}>{"Domain: " + errorDomain}</Text>
+    <Text style={styles.errorText}>{"Error Code: " + errorCode}</Text>
+    <Text style={styles.errorText}>{"Description: " + errorDesc}</Text>
+  </View>); };
+export { defaultOriginWhitelist, createOnShouldStartLoadWithRequest, defaultRenderLoading, defaultRenderError, };
