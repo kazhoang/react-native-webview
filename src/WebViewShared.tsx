@@ -7,50 +7,8 @@ var __spreadArrays = (this && this.__spreadArrays) || function () {
 };
 import escapeStringRegexp from 'escape-string-regexp';
 import React from 'react';
-import { Linking, View, ActivityIndicator, Text, Alert, Platform } from 'react-native';
+import { Linking, View, ActivityIndicator, Text } from 'react-native';
 import styles from './WebView.styles';
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
-
-const onSaveQrCode = (qrCode) => {
-    const fileUri = FileSystem.documentDirectory + 'qrCode.png'
-    var Base64Code = qrCode.split("data:image/png;base64,");
-    FileSystem.writeAsStringAsync(fileUri, Base64Code[1], { encoding: FileSystem.EncodingType.Base64 }).then(() => {
-        FileSystem.getInfoAsync(fileUri).then((file) => {
-            console.log(file)
-            MediaLibrary.requestPermissionsAsync().then(
-                (permission) => {
-                    console.log(permission)
-                    if (permission.granted) {
-                        
-                        MediaLibrary.createAssetAsync(file.uri)
-                            .then((value) => {
-                                MediaLibrary.createAlbumAsync(
-                                    "Wavelink",
-                                    value,
-                                    false,
-                                )
-                                    .then((a) => {
-                                        Alert.alert(
-                                            "Success download file",
-                                            "Please check folder Wavelink on your storage to view file",
-                                        )
-                                    })
-                                    .catch((e) => {
-                                    })
-                            })
-                            .catch((e) => {
-                                console.log(e)
-                            })
-                    }}
-                )
-        })
-    }).catch((e) =>
-        console.log(e)
-    )
-}
-
-
 var defaultOriginWhitelist = ['http://*', 'https://*'];
 var extractOrigin = function (url) {
     var result = /^[A-Za-z][A-Za-z0-9+\-.]+:(\/\/)?[^/]*/.exec(url);
@@ -71,7 +29,7 @@ var createOnShouldStartLoadWithRequest = function (loadRequest, originWhitelist,
         var nativeEvent = _a.nativeEvent;
         var shouldStart = true;
         var url = nativeEvent.url, lockIdentifier = nativeEvent.lockIdentifier;
-        if (!passesWhitelist(compileWhitelist(originWhitelist), url)) {
+        if (!passesWhitelist(compileWhitelist(originWhitelist), url) && !url.startsWith('data:image/png;base64,')) {
             Linking.canOpenURL(url).then(function (supported) {
                 if (supported) {
                     return Linking.openURL(url);
@@ -79,10 +37,7 @@ var createOnShouldStartLoadWithRequest = function (loadRequest, originWhitelist,
                 console.warn("Can't open url: " + url);
                 return undefined;
             })["catch"](function (e) {
-                if (url.startsWith('data:image/png;base64,')) {
-                    onSaveQrCode(url)
-                }
-                // console.warn('Error opening URL: ', e);
+                console.warn('Error opening URL: ', e);
             });
             shouldStart = false;
         }
